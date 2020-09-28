@@ -3,3 +3,5 @@ package-lock.json
 *.png
 *.html
 *.json
+!package.json
+.DS_store
