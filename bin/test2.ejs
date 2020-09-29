@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <title>D3 v5 hierarchy treemap v4/v5</title>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    </head>
+    <style>
+        .link {
+            fill: none;
+            stroke: #555;
+            stroke-opacity: 0.4;
+            stroke-width: 1.5px;
+        }
+    </style>
+
+    <body>
+        <svg width="1500" height="2000"></svg>
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <script>
+            // 2. 描画用のデータ準備
+                var width = document.querySelector("svg").clientWidth;
+                var height = document.querySelector("svg").clientHeight;
+                const jsonString = "<%= JSON.stringify(jsonData) %>".replace(/&#34;/gi, '\"')
+                const data = JSON.parse(jsonString)
+
+                // 3. 描画用のデータ変換
+                root = d3.hierarchy(data);
+
+                var tree = d3.tree()
+                    .size([height, width - 160])
+                //  .nodeSize([50,300]) ;
+                //  .separation(function(a, b) { return(a.parent == b.parent ? 1 : 2); });
+
+                tree(root);
+                //各ノードが持つ末端ノードの数を付与
+                root.count();
+
+                //位置やサイズ情報
+                const rectSize = {
+                    height: 20,
+                    width: 100
+                };
+
+                const basicSpace = {
+                    padding: 30,
+                    height: 50,
+                    width: 120
+                };
+
+                //x座標の計算
+                const defineX = (wholeData, eachData, spaceInfo) => {
+                    //最上位から現在のデータまでの最短ルートを取得
+                    const path = wholeData.path(eachData);
+                    //渡された元データがJSONのままなのでHierarchy形式に変換
+                    const wholeTree = wholeData.descendants()
+                    //経由する各ノードのある階層から、経由地点より上に位置する末端ノードの個数を合計
+                    const leaves = path.map((ancestor) => {
+                        //経由地点のある階層のうちで親が同じデータを抽出
+                        const myHierarchy = wholeTree.filter((item, idx, ary) => item.depth === ancestor.depth && item.parent === ancestor.parent);
+                        //その階層における経由地点のインデックス取得
+                        var myIdx = myHierarchy.findIndex((item) => item.data.name == ancestor.data.name);
+                        //経由地点より上にあるものをフィルタリング
+                        const fitered = myHierarchy.filter((hrcyItem, hrcyIdx, hrcyAry) => hrcyIdx < myIdx);
+                        //valueを集計（配列が空の時があるので、reduceの初期値に0を設定）
+                        const sumValues = fitered.reduce((previous, current, index, array) => previous + current.value, 0);
+                        return sumValues;
+                    });
+                    //末端ノードの数を合計
+                    const sum = leaves.reduce((previous, current, index, array) => previous + current);
+                    return sum;
+                };
+
+                //位置決め
+                const definePos = (treeData, spaceInfo) => {
+                    treeData.each((d) => {
+                        d.y = spaceInfo.padding + d.depth * spaceInfo.width;
+                        const sum = defineX(treeData, d, spaceInfo);
+                        d.x = spaceInfo.padding + sum * spaceInfo.height;
+                    })
+                }
+
+                definePos(root, basicSpace);
+
+                // 4. svg要素の配置
+                g = d3.select("svg").append("g");
+                var link = g.selectAll(".link")
+                    .data(root.descendants().slice(1))
+                    .enter()
+                    .append("path")
+                    .attr("class", "link")
+                    .attr("d", function (d) {
+                        return "M" + d.y + "," + d.x +
+                            "L" + (d.parent.y + rectSize.width + (basicSpace.width - rectSize.width) / 2) + "," + d.x +
+                            " " + (d.parent.y + rectSize.width + (basicSpace.width - rectSize.width) / 2) + "," + d.parent.x +
+                            " " + (d.parent.y + rectSize.width) + "," + d.parent.x
+                    })
+                    .attr("transform", function (d) { return "translate(0," + rectSize.height / 2 + ")"; });
+
+                var node = g.selectAll(".node")
+                    .data(root.descendants())
+                    .enter()
+                    .append("g")
+                    .attr("class", "node")
+                    .attr("transform", function (d) { return "translate(" + d.y + "," + d.x + ")"; })
+
+                node.append("rect")
+                    .attr("width", rectSize.width)
+                    .attr("height", rectSize.height)
+                    .attr("fill", "white")
+                    .attr("stroke", "black");
+
+                node.append("text")
+                    .text(function (d) { return d.data.name;})
+                    .attr("font-size","15px")
+                    .attr("transform", "translate(" + 10 + "," + 15 + ")");
+        </script>
+    </body>
+
+</html>
